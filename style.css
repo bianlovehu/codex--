@@ -1,0 +1,79 @@
+:root {
+  --bg: #f5f1e6;
+  --panel: #fffaf0;
+  --text: #222;
+  --line: #4f4635;
+  --accent: #9b6a2f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans SC", "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid #ddd3be;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+label {
+  font-size: 14px;
+}
+
+select,
+button {
+  font-size: 14px;
+  padding: 6px 8px;
+  border: 1px solid #c4b69b;
+  border-radius: 6px;
+  background: #fff;
+}
+
+button {
+  cursor: pointer;
+  background: #f0e4cf;
+}
+
+button:hover {
+  background: #e8d7bb;
+}
+
+#status {
+  min-height: 24px;
+  margin: 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+#board {
+  display: block;
+  width: min(92vw, 600px);
+  height: min(92vw, 600px);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #e9cb95, #d9ad70);
+  border-radius: 4px;
+  touch-action: manipulation;
+}
