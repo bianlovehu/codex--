@@ -1,36 +1,48 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gomoku</title>
+    <title>五子棋·弈境</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <main class="container">
-      <h1>Gomoku</h1>
-      <section class="controls" aria-label="Game Controls">
-        <label for="mode">Mode</label>
+      <h1>五子棋·弈境</h1>
+
+      <section class="controls" aria-label="游戏控制区">
+        <label for="mode">对战模式</label>
         <select id="mode">
-          <option value="pvp">Local PvP</option>
-          <option value="pve">Player vs AI</option>
+          <option value="pvp">本地双人</option>
+          <option value="pve">人机对战</option>
         </select>
 
-        <label for="difficulty">Difficulty</label>
+        <label for="difficulty">AI 难度</label>
         <select id="difficulty">
-          <option value="easy">Easy</option>
-          <option value="normal" selected>Normal</option>
-          <option value="hard">Hard</option>
+          <option value="easy">简单</option>
+          <option value="normal" selected>普通</option>
+          <option value="hard">困难</option>
         </select>
 
-        <button id="undo" type="button">Undo</button>
-        <button id="reset" type="button">Restart</button>
+        <button id="undo" type="button">悔棋</button>
+        <button id="reset" type="button">重新开始</button>
+      </section>
+
+      <section class="audio-controls" aria-label="音频控制区">
+        <button id="muteToggle" type="button" aria-pressed="false">静音：关</button>
+        <label for="sfxVolume">音效音量</label>
+        <input id="sfxVolume" type="range" min="0" max="100" value="70" />
+        <label for="bgmVolume">背景乐音量</label>
+        <input id="bgmVolume" type="range" min="0" max="100" value="55" />
       </section>
 
       <p id="status" role="status" aria-live="polite"></p>
-      <canvas id="board" width="600" height="600" aria-label="Gomoku Board"></canvas>
+      <p id="aiMeta" class="ai-meta" aria-live="polite"></p>
+
+      <canvas id="board" width="600" height="600" aria-label="五子棋棋盘"></canvas>
     </main>
 
-    <script src="./game.js"></script>
+    <audio id="bgm" preload="auto" loop src="./assets/audio/bgm-loop.mp3"></audio>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>
