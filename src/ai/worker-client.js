@@ -61,7 +61,8 @@ export class AIWorkerClient {
           aiPlayer: options.aiPlayer,
           maxTimeMs,
           maxDepth: options.maxDepth || 6,
-          zobristKey: options.zobristKey || Date.now()
+          zobristKey: options.zobristKey || Date.now(),
+          forcedCandidates: options.forcedCandidates || null
         }
       });
     });

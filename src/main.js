@@ -10,6 +10,8 @@ import {
 } from "./constants.js";
 import { AIWorkerClient } from "./ai/worker-client.js";
 import { chooseEasyMove, chooseNormalMove } from "./ai/strategies.js";
+import { requestLLMMove } from "./ai/llm-client.js";
+import { getCandidates } from "./ai/candidates.js";
 import { AudioManager } from "./audio/audio-manager.js";
 import { createInitialState } from "./core/game-state.js";
 import { checkWinner, createEmptyBoard, createSnapshot, findWinningLine, inBounds, isBoardFull } from "./core/rules.js";
@@ -66,7 +68,11 @@ function setStatusText() {
     return;
   }
   if (state.mode === MODE_PVE && state.currentPlayer === WHITE) {
-    statusEl.textContent = "电脑正在思考...";
+    if (state.difficulty === DIFFICULTY_HARD && state.llmThinking) {
+      statusEl.textContent = "困难模式：大模型思考中...";
+    } else {
+      statusEl.textContent = "电脑正在思考...";
+    }
     return;
   }
   statusEl.textContent = state.currentPlayer === BLACK ? "当前回合：黑棋" : "当前回合：白棋";
@@ -78,10 +84,13 @@ function setAIMetaText() {
     return;
   }
   const parts = [];
+  if (state.aiMeta.source) parts.push(`来源: ${state.aiMeta.source}`);
+  if (state.aiMeta.model) parts.push(`模型: ${state.aiMeta.model}`);
   if (typeof state.aiMeta.depthReached === "number") parts.push(`搜索深度 ${state.aiMeta.depthReached}`);
   if (typeof state.aiMeta.nodes === "number") parts.push(`节点 ${state.aiMeta.nodes}`);
   if (typeof state.aiMeta.timeMs === "number") parts.push(`用时 ${state.aiMeta.timeMs}ms`);
-  if (state.aiMeta.fallback) parts.push("已回退普通策略");
+  if (typeof state.aiMeta.latencyMs === "number") parts.push(`LLM延迟 ${state.aiMeta.latencyMs}ms`);
+  if (state.aiMeta.fallback) parts.push("已回退本地策略");
   aiMetaEl.textContent = parts.join(" · ");
 }
 
@@ -101,6 +110,7 @@ function resetRuntimeState() {
   state.lastMove = null;
   state.winningLine = null;
   state.aiMeta = null;
+  state.llmThinking = false;
 }
 
 function newGame({ mode, difficulty }) {
@@ -168,13 +178,79 @@ function cellFromPointer(event) {
 async function requestAIMove(snapshot, options) {
   const difficulty = options.difficulty || state.difficulty;
   const timeBudgetMs = options.timeBudgetMs || AI_TIME_BUDGET[difficulty] || 200;
+  const llmEnabled = options.llmEnabled !== false;
 
   if (difficulty === DIFFICULTY_EASY) {
-    return { move: chooseEasyMove(snapshot.board, WHITE), meta: { timeMs: 0, nodes: 0, depthReached: 0 } };
+    return { move: chooseEasyMove(snapshot.board, WHITE), meta: { timeMs: 0, nodes: 0, depthReached: 0, source: "local" } };
   }
 
   if (difficulty !== DIFFICULTY_HARD) {
-    return { move: chooseNormalMove(snapshot.board, WHITE), meta: { timeMs: 0, nodes: 0, depthReached: 0 } };
+    return { move: chooseNormalMove(snapshot.board, WHITE), meta: { timeMs: 0, nodes: 0, depthReached: 0, source: "local" } };
+  }
+
+  if (llmEnabled) {
+    try {
+      state.llmThinking = true;
+      render();
+
+      const candidatePool = getCandidates(snapshot.board, 18, 2);
+      if (candidatePool.length === 0) {
+        throw new Error("无可用候选点");
+      }
+
+      const llmResult = await requestLLMMove(snapshot, {
+        timeoutMs: 12000,
+        model: "deepseek-chat",
+        candidatePool: candidatePool.map(c => [c.x, c.y])
+      });
+
+      if (llmResult.candidates && llmResult.candidates.length > 0) {
+        const topCandidates = llmResult.candidates.slice(0, 3);
+        
+        try {
+          const searchResult = await aiWorkerClient.requestSearch(snapshot, {
+            difficulty,
+            timeBudgetMs: Math.max(500, timeBudgetMs - llmResult.latencyMs),
+            maxDepth: 6,
+            aiPlayer: WHITE,
+            forcedCandidates: topCandidates
+          });
+
+          return {
+            move: { x: searchResult.x, y: searchResult.y },
+            meta: {
+              source: "llm+search",
+              model: llmResult.model,
+              latencyMs: llmResult.latencyMs,
+              nodes: searchResult.nodes,
+              timeMs: searchResult.timeMs + llmResult.latencyMs,
+              depthReached: searchResult.depthReached,
+              tokenUsage: llmResult.tokenUsage
+            }
+          };
+        } catch (searchError) {
+          return {
+            move: { x: topCandidates[0].x, y: topCandidates[0].y },
+            meta: {
+              source: "llm",
+              model: llmResult.model,
+              latencyMs: llmResult.latencyMs,
+              nodes: 0,
+              timeMs: llmResult.latencyMs,
+              depthReached: 0,
+              tokenUsage: llmResult.tokenUsage,
+              fallback: true
+            }
+          };
+        }
+      } else {
+        throw new Error("LLM 未返回有效候选");
+      }
+    } catch (llmError) {
+      console.warn("LLM 请求失败，回退到本地困难模式:", llmError.message);
+    } finally {
+      state.llmThinking = false;
+    }
   }
 
   try {
@@ -187,6 +263,7 @@ async function requestAIMove(snapshot, options) {
     return {
       move: { x: result.x, y: result.y },
       meta: {
+        source: "local",
         nodes: result.nodes,
         timeMs: result.timeMs,
         depthReached: result.depthReached
@@ -195,7 +272,7 @@ async function requestAIMove(snapshot, options) {
   } catch (_error) {
     return {
       move: chooseNormalMove(snapshot.board, WHITE),
-      meta: { fallback: true, nodes: 0, timeMs: 0, depthReached: 0 }
+      meta: { fallback: true, nodes: 0, timeMs: 0, depthReached: 0, source: "local" }
     };
   }
 }

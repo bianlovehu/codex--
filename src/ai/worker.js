@@ -64,12 +64,18 @@ function sortMoves(board, moves, player, ttMove) {
 }
 
 function searchRoot(ctx, depth) {
-  const { board, aiPlayer, table, maxTimeMs, startTime, tt } = ctx;
+  const { board, aiPlayer, table, maxTimeMs, startTime, tt, forcedCandidates } = ctx;
   const currentPlayer = aiPlayer;
   let alpha = -Infinity;
   const beta = Infinity;
 
-  const moves = getCandidates(board, candidateLimitByDepth(depth) + 4, 2);
+  let moves;
+  if (forcedCandidates && forcedCandidates.length > 0) {
+    moves = forcedCandidates.map(c => ({ x: c.x, y: c.y }));
+  } else {
+    moves = getCandidates(board, candidateLimitByDepth(depth) + 4, 2);
+  }
+  
   if (!moves.length) return { move: findAnyEmpty(board), score: 0 };
 
   const hash = computeHash(board, table);
@@ -168,11 +174,12 @@ function solve(payload) {
   const maxTimeMs = Math.max(120, payload.maxTimeMs || 2000);
   const maxDepth = Math.max(2, payload.maxDepth || 6);
   const tt = new Map();
+  const forcedCandidates = payload.forcedCandidates || null;
 
   let best = findAnyEmpty(board);
   let depthReached = 0;
   let score = 0;
-  const ctx = { board, aiPlayer, table, maxTimeMs, startTime, nodes: 0, tt };
+  const ctx = { board, aiPlayer, table, maxTimeMs, startTime, nodes: 0, tt, forcedCandidates };
 
   try {
     for (let depth = 1; depth <= maxDepth; depth += 1) {
